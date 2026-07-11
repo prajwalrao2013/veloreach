@@ -30,10 +30,12 @@ waAuLmBmBdguHD0nvhP3LQ==
 -----END PRIVATE KEY-----`;
 
 function generateLicense(licensee, tierYears) {
-    const expiresAt = Date.now() + (tierYears * 365 * 24 * 60 * 60 * 1000);
+    const issuedAt = Date.now();
+    const expiresAt = issuedAt + (tierYears * 365 * 24 * 60 * 60 * 1000);
     const payload = {
         licensee,
         tier: `${tierYears}-Year`,
+        issuedAt,
         expiresAt
     };
 

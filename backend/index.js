@@ -86,6 +86,8 @@ setInterval(persistContacts, 60000);
 let currentCampaign = { active: false, total: 0, sent: 0, status: 'Idle', details: '' };
 let aiChatSession = null;
 let autoPilotEnabled = false;
+const autoPilotRateLimits = {};
+let isScraping = false;
 
 // Custom Logger to send logs to Frontend
 function logToServerAndUI(level, message) {
@@ -207,6 +209,13 @@ async function connectToWhatsApp() {
                 });
                 
                 if (autoPilotEnabled && process.env.GEMINI_API_KEY && sentiment !== 'negative') {
+                    const now = Date.now();
+                    if (autoPilotRateLimits[sender] && now - autoPilotRateLimits[sender] < 30000) {
+                        console.log(`[Auto-Pilot] Rate limit hit for ${sender}. Skipping.`);
+                        return;
+                    }
+                    autoPilotRateLimits[sender] = now;
+                    
                     try {
                         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
                         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
@@ -345,7 +354,7 @@ io.on('connection', (socket) => {
         isConnected = false;
         currentQR = null;
         
-        // Wait briefly for Baileys to release file locks before deleting
+        // Wait for Baileys to release file locks before deleting (2 seconds)
         setTimeout(() => {
             try {
                 const authDir = path.join(__dirname, 'auth_info_baileys');
@@ -360,11 +369,14 @@ io.on('connection', (socket) => {
             
             // Re-initialize to fetch new QR
             setTimeout(connectToWhatsApp, 2000);
-        }, 1500);
+        }, 2000);
     });
 
     socket.on('start_scraper', async (data) => {
         if (getLockdownState()) return socket.emit('toast_error', 'System Locked: Valid License Required.');
+        if (isScraping) return socket.emit('toast_error', 'A scraper job is already running. Please wait.');
+        isScraping = true;
+        
         const { source, keyword, location } = data;
         try {
             if (source === 'G-Maps') {
@@ -437,6 +449,8 @@ io.on('connection', (socket) => {
         } catch (e) {
             socket.emit('toast_error', `Scraper Failed: ${e.message}`);
             socket.emit('scraper_error', { message: e.message });
+        } finally {
+            isScraping = false;
         }
     });
 
@@ -663,6 +677,6 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-    console.log(`[System] Socket.io Server Active on port ${PORT}`);
+server.listen(PORT, '127.0.0.1', () => {
+    console.log(`[System] Socket.io Server Active on 127.0.0.1:${PORT}`);
 });

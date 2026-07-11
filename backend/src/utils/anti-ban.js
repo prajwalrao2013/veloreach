@@ -55,7 +55,10 @@ async function generateLlmVariations(baseTemplate, variationCount = 5) {
 
     try {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ 
+            model: "gemini-1.5-flash",
+            generationConfig: { responseMimeType: "application/json" }
+        });
 
         const prompt = `
         You are a highly professional sales copywriter. I need ${variationCount} slightly different 
@@ -68,7 +71,7 @@ async function generateLlmVariations(baseTemplate, variationCount = 5) {
 
         const result = await model.generateContent(prompt);
         const response = await result.response;
-        const text = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
+        const text = response.text();
         
         const variations = JSON.parse(text);
         if (Array.isArray(variations) && variations.length > 0) {
